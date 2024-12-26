@@ -20,6 +20,13 @@ export default function AppLayout() {
 			headerShown: false
 		}}>
 			<Stack.Screen name="index" />
+			<Stack.Screen
+				name="prize-modal"
+				options={{
+					presentation: 'modal',
+					animation: 'slide_from_bottom',
+				}}
+			/>
 		</Stack>
 	);
 }

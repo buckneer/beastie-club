@@ -12,6 +12,7 @@ import {
 } from 'react-native';
 import assets from "@/assets/images/app/assets";
 import {useSession} from "@/ctx";
+import {router} from "expo-router";
 
 const wheelSize = Dimensions.get('window').width * 0.8;
 
@@ -38,20 +39,29 @@ const prizes: Prize[] = [
 	{ label: 'NO REWARD', from: 0, to: 30, center: 15, weight: 0.5 },
 ];
 
+// function getWeightedRandomAngle(): number {
+// 	const cumulativeWeights = prizes.map((prize, index) =>
+// 		prizes.slice(0, index + 1).reduce((acc, prize) => acc + prize.weight, 0)
+// 	);
+// 	const maxCumulativeWeight = cumulativeWeights[cumulativeWeights.length - 1];
+// 	const randomWeight = Math.random() * maxCumulativeWeight;
+//
+// 	const selectedPrizeIndex = cumulativeWeights.findIndex(
+// 		cumulativeWeight => randomWeight <= cumulativeWeight
+// 	);
+// 	const selectedPrize = prizes[selectedPrizeIndex];
+//
+// 	// Randomly select an angle within the selected prize's range
+// 	return Math.floor(Math.random() * (selectedPrize.to - selectedPrize.from) + selectedPrize.from);
+// }
 function getWeightedRandomAngle(): number {
-	const cumulativeWeights = prizes.map((prize, index) =>
-		prizes.slice(0, index + 1).reduce((acc, prize) => acc + prize.weight, 0)
-	);
-	const maxCumulativeWeight = cumulativeWeights[cumulativeWeights.length - 1];
-	const randomWeight = Math.random() * maxCumulativeWeight;
-
-	const selectedPrizeIndex = cumulativeWeights.findIndex(
-		cumulativeWeight => randomWeight <= cumulativeWeight
-	);
-	const selectedPrize = prizes[selectedPrizeIndex];
-
-	// Randomly select an angle within the selected prize's range
-	return Math.floor(Math.random() * (selectedPrize.to - selectedPrize.from) + selectedPrize.from);
+	// Always win the "FREE BURGER" prize for testing
+	const freeBurgerPrize = prizes.find((prize) => prize.label === 'FREE BURGER');
+	if (freeBurgerPrize) {
+		return freeBurgerPrize.center;
+	}
+	// Default behavior if the prize isn't found
+	return Math.floor(Math.random() * 360);
 }
 
 function getPrizeByAngle(angle: number): Prize {
@@ -77,22 +87,36 @@ const PrizeWheel: React.FC = () => {
 
 	useEffect(() => {
 		if (user) {
+			// Function to fetch the last spin and set up the timer
 			const fetchLastSpin = async () => {
 				const { lastSpin, lastPrize } = await getLastSpin(user.uid);
 				setLastPrize(lastPrize);
+
 				if (lastSpin) {
 					const nextSpinTime = new Date(lastSpin.getTime() + 3 * 24 * 60 * 60 * 1000); // 3 days later
 					const now = new Date();
-					if (now < nextSpinTime) {
+
+					if (now >= nextSpinTime) {
+						setTimeLeft(null); // Reset the timer when time is up
+					} else {
 						const diff = nextSpinTime.getTime() - now.getTime();
 						const hours = Math.floor(diff / (1000 * 60 * 60));
 						const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-						setTimeLeft(`${hours} hours and ${minutes} minutes`);
+						setTimeLeft(`${hours} hours, ${minutes} minutes`);
 					}
 				}
 			};
 
+			// Fetch immediately
 			fetchLastSpin();
+
+			// Set up an interval to refetch every minute
+			const interval = setInterval(() => {
+				fetchLastSpin();
+			}, 60000); // Every 1 minute
+
+			// Cleanup on component unmount
+			return () => clearInterval(interval);
 		}
 	}, [user]);
 
@@ -114,9 +138,15 @@ const PrizeWheel: React.FC = () => {
 				rotation.setValue(currentRotation.current);
 
 				if (prize.label === 'NO REWARD') {
-					Alert.alert("Try Again", "You can try next day");
+					Alert.alert("Try Again", "You can try in 3 days");
 				} else {
-					Alert.alert("Congratulations!", `You won: ${prize.label}`);
+					router.push({
+						pathname: '/prize-modal',
+						params: {
+							prize: 'Gift Card',
+							qrValue: 'https://example.com/qr',
+						},
+					});
 				}
 
 				// Update Firestore with the new spin time and prize
@@ -153,9 +183,19 @@ const PrizeWheel: React.FC = () => {
 					<Text style={styles.resultText}>
 						Next spin available in:
 					</Text>
-					<Text style={styles.resultText}>
-						{timeLeft}
-					</Text>
+					<TouchableOpacity onPress={() => {
+						router.push({
+							pathname: '/prize-modal',
+							params: {
+								prize: 'Gift Card',
+								qrValue: 'https://example.com/qr',
+							},
+						});
+					}}>
+						<Text style={styles.resultText}>
+							{timeLeft}
+						</Text>
+					</TouchableOpacity>
 					{/*<Text style={styles.resultText}>*/}
 					{/*	{lastPrize && `\nLast prize: ${lastPrize}`}*/}
 					{/*</Text>*/}
