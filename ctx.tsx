@@ -72,17 +72,20 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 	const saveLastSpin = async (userId: string, prizeName: string) => {
 		try {
-			// Save the last spin time and prize to the user's session (existing functionality)
-			const userDocRef = doc(db, 'users', userId);
-			await updateDoc(userDocRef, {
-				lastSpin: new Date(),
-				lastPrize: prizeName,
-			});
 
 			// Generate a unique hexadecimal code for the prize
 			const uniqueCode = Array.from({ length: 8 }, () =>
 				Math.floor(Math.random() * 16).toString(16)
 			).join('').toUpperCase();
+
+			// Save the last spin time and prize to the user's session (existing functionality)
+			const userDocRef = doc(db, 'users', userId);
+			await updateDoc(userDocRef, {
+				lastSpin: new Date(),
+				lastPrize: prizeName,
+				uniqueCode
+			});
+
 
 			// Save the prize to the prizes collection
 			const prizeDocRef = doc(collection(db, 'prizes'));
@@ -102,39 +105,21 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
 	const getLastSpin = async (userId: string) => {
 		try {
-			// Fetch the user's last spin data
+			// Fetch the user's document
 			const userDocRef = doc(db, 'users', userId);
 			const userDoc = await getDoc(userDocRef);
 
 			if (userDoc.exists()) {
-				const lastPrize = userDoc.data()?.lastPrize || null;
+				// Extract spin details
 				const lastSpin = userDoc.data()?.lastSpin?.toDate() || null;
+				const lastPrize = userDoc.data()?.lastPrize || null;
+				const uniqueCode = userDoc.data()?.uniqueCode || null;
 
-				if (lastPrize) {
-					// Fetch the unique code for the prize
-					const prizesCollection = collection(db, 'prizes');
-					const prizeQuery = query(
-						prizesCollection,
-						where('userId', '==', userId),
-						where('prizeName', '==', lastPrize),
-						orderBy('date', 'desc'),
-						limit(1)
-					);
-					const prizeSnapshot = await getDocs(prizeQuery);
-
-					if (!prizeSnapshot.empty) {
-						const prizeDoc = prizeSnapshot.docs[0];
-						const uniqueCode = prizeDoc.data()?.uniqueCode || null;
-
-						return { lastPrize, lastSpin, uniqueCode };
-					}
-				}
-
-				return { lastPrize, lastSpin, uniqueCode: null };
+				return { lastPrize, lastSpin, uniqueCode };
 			}
 			return { lastPrize: null, lastSpin: null, uniqueCode: null };
 		} catch (error) {
-			console.error("Error getting last spin: ", error);
+			console.error('Error getting last spin:', error);
 			return { lastPrize: null, lastSpin: null, uniqueCode: null };
 		}
 	};

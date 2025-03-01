@@ -39,30 +39,30 @@ const prizes: Prize[] = [
 	{ label: 'NO REWARD', from: 0, to: 30, center: 15, weight: 0.5 },
 ];
 
-// function getWeightedRandomAngle(): number {
-// 	const cumulativeWeights = prizes.map((prize, index) =>
-// 		prizes.slice(0, index + 1).reduce((acc, prize) => acc + prize.weight, 0)
-// 	);
-// 	const maxCumulativeWeight = cumulativeWeights[cumulativeWeights.length - 1];
-// 	const randomWeight = Math.random() * maxCumulativeWeight;
-//
-// 	const selectedPrizeIndex = cumulativeWeights.findIndex(
-// 		cumulativeWeight => randomWeight <= cumulativeWeight
-// 	);
-// 	const selectedPrize = prizes[selectedPrizeIndex];
-//
-// 	// Randomly select an angle within the selected prize's range
-// 	return Math.floor(Math.random() * (selectedPrize.to - selectedPrize.from) + selectedPrize.from);
-// }
 function getWeightedRandomAngle(): number {
-	// Always win the "FREE BURGER" prize for testing
-	const freeBurgerPrize = prizes.find((prize) => prize.label === 'FREE BURGER');
-	if (freeBurgerPrize) {
-		return freeBurgerPrize.center;
-	}
-	// Default behavior if the prize isn't found
-	return Math.floor(Math.random() * 360);
+	const cumulativeWeights = prizes.map((prize, index) =>
+		prizes.slice(0, index + 1).reduce((acc, prize) => acc + prize.weight, 0)
+	);
+	const maxCumulativeWeight = cumulativeWeights[cumulativeWeights.length - 1];
+	const randomWeight = Math.random() * maxCumulativeWeight;
+
+	const selectedPrizeIndex = cumulativeWeights.findIndex(
+		cumulativeWeight => randomWeight <= cumulativeWeight
+	);
+	const selectedPrize = prizes[selectedPrizeIndex];
+
+	// Randomly select an angle within the selected prize's range
+	return Math.floor(Math.random() * (selectedPrize.to - selectedPrize.from) + selectedPrize.from);
 }
+// function getWeightedRandomAngle(): number {
+// 	// Always win the "FREE BURGER" prize for testing
+// 	const freeBurgerPrize = prizes.find((prize) => prize.label === 'FREE BURGER');
+// 	if (freeBurgerPrize) {
+// 		return freeBurgerPrize.center;
+// 	}
+// 	// Default behavior if the prize isn't found
+// 	return Math.floor(Math.random() * 360);
+// }
 
 function getPrizeByAngle(angle: number): Prize {
 	return prizes.find((prize) => {
@@ -87,7 +87,6 @@ const PrizeWheel: React.FC = () => {
 
 	useEffect(() => {
 		if (user) {
-			// Function to fetch the last spin and set up the timer
 			const fetchLastSpin = async () => {
 				const { lastSpin, lastPrize } = await getLastSpin(user.uid);
 				setLastPrize(lastPrize);
@@ -97,12 +96,21 @@ const PrizeWheel: React.FC = () => {
 					const now = new Date();
 
 					if (now >= nextSpinTime) {
-						setTimeLeft(null); // Reset the timer when time is up
+						setTimeLeft(null); // Spin available
+						rotation.setValue(0); // Reset wheel to 0
 					} else {
 						const diff = nextSpinTime.getTime() - now.getTime();
 						const hours = Math.floor(diff / (1000 * 60 * 60));
 						const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
 						setTimeLeft(`${hours} hours, ${minutes} minutes`);
+
+						// If the last prize exists, set the wheel's position
+						if (lastPrize) {
+							const prize = prizes.find((p) => p.label === lastPrize);
+							if (prize) {
+								rotation.setValue(prize.center); // Position the wheel at the last prize
+							}
+						}
 					}
 				}
 			};
@@ -183,19 +191,27 @@ const PrizeWheel: React.FC = () => {
 					<Text style={styles.resultText}>
 						Next spin available in:
 					</Text>
-					<TouchableOpacity onPress={() => {
-						router.push({
-							pathname: '/prize-modal',
-							params: {
-								prize: 'Gift Card',
-								qrValue: 'https://example.com/qr',
-							},
-						});
-					}}>
+					{lastPrize !== 'NO REWARD' ? (
+						<TouchableOpacity
+							onPress={() => {
+								router.push({
+									pathname: '/prize-modal',
+									params: {
+										prize: lastPrize || 'Gift Card',
+										qrValue: 'https://example.com/qr',
+									},
+								});
+							}}
+						>
+							<Text style={styles.resultText}>
+								{timeLeft}
+							</Text>
+						</TouchableOpacity>
+					) : (
 						<Text style={styles.resultText}>
 							{timeLeft}
 						</Text>
-					</TouchableOpacity>
+					)}
 					{/*<Text style={styles.resultText}>*/}
 					{/*	{lastPrize && `\nLast prize: ${lastPrize}`}*/}
 					{/*</Text>*/}
