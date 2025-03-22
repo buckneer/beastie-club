@@ -1,6 +1,6 @@
 {
   "expo": {
-    "name": "beastie-club",
+    "name": "Beastie Club",
     "slug": "beastie-club",
     "version": "1.0.0",
     "orientation": "portrait",
@@ -14,7 +14,11 @@
     },
     "ios": {
       "supportsTablet": true,
-      "bundleIdentifier": "com.buckneer.beastieclub"
+      "bundleIdentifier": "com.buckneer.beastieclub",
+      "buildNumber": "2",
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
+      }
     },
     "android": {
       "adaptiveIcon": {

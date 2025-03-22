@@ -1,11 +1,14 @@
 import React from 'react';
-import { Image, StyleSheet, Text, View, Dimensions, TouchableOpacity } from 'react-native';
+import {Image, StyleSheet, Text, View, Dimensions, TouchableOpacity, ScrollView} from 'react-native';
 import PrizeWheel from "@/components/PrizeWheel";
 import assets from "@/assets/images/app/assets";
 import Ionicons from "@expo/vector-icons/Ionicons";
 import { useSession } from '@/ctx';
+import {router} from "expo-router";
 
-let screenWidth = Dimensions.get('window').width;
+
+const screenWidth = Dimensions.get('window').width;
+const isTablet = screenWidth >= 768;
 
 export default function HomeScreen() {
 	const { signOut } = useSession();
@@ -14,12 +17,19 @@ export default function HomeScreen() {
 		await signOut();
 	};
 
+	const handleNavigate = async () => {
+		router.push("/profile");
+	};
+
 	return (
-		<View style={styles.container}>
+		<ScrollView style={styles.container}>
 			<View style={styles.header}>
 				<Image style={styles.headerImage} source={assets.logo} />
-				<TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>
-					<Ionicons name="log-out-outline" size={30} color="#d92e2b" />
+				{/*<TouchableOpacity style={styles.logoutButton} onPress={handleSignOut}>*/}
+				{/*	<Ionicons name="log-out-outline" size={30} color="#d92e2b" />*/}
+				{/*</TouchableOpacity>*/}
+				<TouchableOpacity style={styles.logoutButton} onPress={handleNavigate}>
+					<Ionicons name="person" size={30} color="#d92e2b" />
 				</TouchableOpacity>
 			</View>
 			<View style={styles.titleContainer}>
@@ -30,7 +40,7 @@ export default function HomeScreen() {
 			<View style={styles.titleContainer}>
 				<Text style={styles.websiteTitle}>BEASTIE.BE</Text>
 			</View>
-		</View>
+		</ScrollView>
 	);
 }
 
@@ -41,22 +51,22 @@ const styles = StyleSheet.create({
 	},
 	header: {
 		backgroundColor: "#FFF",
-		borderBottomEndRadius: 50,
-		borderBottomStartRadius: 50,
+		borderBottomEndRadius: isTablet ? 70 : 50,  // increased border radius for tablets
+		borderBottomStartRadius: isTablet ? 70 : 50,
 		alignItems: 'center',
 		justifyContent: 'center',
 		position: 'relative',
 	},
 	headerImage: {
-		width: screenWidth * 0.6,
+		width: isTablet ? screenWidth * 0.4 : screenWidth * 0.6, // adjust width based on device
 		height: undefined,
 		aspectRatio: 1,
 		resizeMode: 'contain',
 	},
 	logoutButton: {
 		position: 'absolute',
-		right: 16,
-		top: 40,
+		right: isTablet ? 30 : 16,
+		top: isTablet ? 60 : 40,
 		padding: 10,
 	},
 	titleContainer: {
@@ -65,7 +75,7 @@ const styles = StyleSheet.create({
 	},
 	title: {
 		color: "#FFF",
-		fontSize: 50,
+		fontSize: isTablet ? 60 : 50, // increase font size for tablets
 		marginTop: 15,
 		fontWeight: "bold",
 		fontFamily: "Beastie Bold"
@@ -76,7 +86,7 @@ const styles = StyleSheet.create({
 	},
 	websiteTitle: {
 		color: "#FFF",
-		fontSize: 50,
+		fontSize: isTablet ? 60 : 50, // increase font size for tablets
 		marginTop: 15,
 		marginBottom: 20,
 		fontWeight: "bold",

@@ -1,10 +1,15 @@
 import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Dimensions } from 'react-native';
 import QRCode from 'react-native-qrcode-svg';
 import { useRouter } from 'expo-router';
 import { useSession } from '@/ctx';
-import { getFirestore, collection, query, where, getDocs } from 'firebase/firestore';
-import {db} from "@/firebase/FirebaseConfig";
+import { collection, query, where, getDocs } from 'firebase/firestore';
+import { db } from "@/firebase/FirebaseConfig";
+
+// Get device dimensions
+const { width: deviceWidth } = Dimensions.get('window');
+// Define a threshold – here we assume tablets are wider than 768 pixels
+const isTablet = deviceWidth >= 768;
 
 const PrizeModal: React.FC = () => {
 	const router = useRouter();
@@ -36,7 +41,6 @@ const PrizeModal: React.FC = () => {
 							qrValue: `https://beastie.be/admin/prize/${uniqueCode}`,
 							redeemed: redeemed || false,
 						});
-
 					} else {
 						setError('Prize not found.');
 					}
@@ -66,10 +70,7 @@ const PrizeModal: React.FC = () => {
 		return (
 			<View style={styles.modalContainer}>
 				<Text style={styles.errorText}>{error}</Text>
-				<TouchableOpacity
-					style={styles.closeButton}
-					onPress={() => router.back()}
-				>
+				<TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
 					<Text style={styles.closeButtonText}>Close</Text>
 				</TouchableOpacity>
 			</View>
@@ -85,17 +86,11 @@ const PrizeModal: React.FC = () => {
 					<Text style={styles.errorText}>This prize has already been redeemed.</Text>
 				) : (
 					<View style={styles.qrCodeContainer}>
-						<View style={styles.qrCodeContainer}>
-							<QRCode value={prizeData.qrValue} size={150} />
-						</View>
+						<QRCode value={prizeData.qrValue} size={isTablet ? 200 : 150} />
 						<Text style={styles.prizeLabel}>Show this QR code to our staff to get your prize</Text>
 					</View>
 				)}
-
-				<TouchableOpacity
-					style={styles.closeButton}
-					onPress={() => router.back()}
-				>
+				<TouchableOpacity style={styles.closeButton} onPress={() => router.back()}>
 					<Text style={styles.closeButtonText}>Close</Text>
 				</TouchableOpacity>
 			</View>
@@ -110,23 +105,25 @@ const styles = StyleSheet.create({
 		alignItems: 'center',
 		backgroundColor: 'rgba(0, 0, 0, 0.5)',
 	},
+	// Adjust modalContent width based on whether it is a tablet or a phone
 	modalContent: {
-		width: '80%',
+		width: isTablet ? '60%' : '80%',
 		backgroundColor: '#fff',
 		borderRadius: 10,
-		padding: 20,
+		padding: isTablet ? 30 : 20,
 		alignItems: 'center',
 	},
+	// Increase font sizes slightly for tablets
 	prizeText: {
-		fontSize: 24,
+		fontSize: isTablet ? 28 : 24,
 		fontWeight: 'bold',
 		marginBottom: 10,
 	},
 	prizeLabel: {
-		fontSize: 18,
+		fontSize: isTablet ? 20 : 18,
 		color: '#333',
 		marginBottom: 20,
-		textAlign: 'center'
+		textAlign: 'center',
 	},
 	qrCodeContainer: {
 		marginVertical: 20,
@@ -136,18 +133,18 @@ const styles = StyleSheet.create({
 	closeButton: {
 		marginTop: 20,
 		backgroundColor: '#d92e2b',
-		paddingVertical: 10,
-		paddingHorizontal: 20,
+		paddingVertical: isTablet ? 12 : 10,
+		paddingHorizontal: isTablet ? 24 : 20,
 		borderRadius: 5,
 	},
 	closeButtonText: {
 		color: '#fff',
-		fontSize: 16,
+		fontSize: isTablet ? 18 : 16,
 		fontWeight: 'bold',
 	},
 	errorText: {
 		color: '#d92e2b',
-		fontSize: 16,
+		fontSize: isTablet ? 18 : 16,
 		textAlign: 'center',
 	},
 });
