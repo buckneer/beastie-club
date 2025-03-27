@@ -36,9 +36,9 @@ export default function RootLayout() {
 					screenOptions={{
 						headerShown: false
 					}}>
+					<Stack.Screen name="(app)" options={{}} />
 					<Stack.Screen name="sign-up" options={{}} />
 					<Stack.Screen name="sign-in" options={{}} />
-					<Stack.Screen name="(app)" options={{}} />
 				</Stack>
 			</ThemeProvider>
 		</AuthProvider>

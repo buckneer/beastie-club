@@ -9,11 +9,11 @@ import {useSession} from "@/ctx";
 
 export default function AppLayout() {
 
-	const { session } = useSession();
-
-	if (!session) {
-		return <Redirect href="/sign-in" />;
-	}
+	// const { session } = useSession();
+	//
+	// if (!session) {
+	// 	return <Redirect href="/sign-in" />;
+	// }
 
 	return (
 		<Stack screenOptions={{

@@ -10,9 +10,11 @@ import {
 	Image,
 	Alert,
 } from 'react-native';
-import assets from "@/assets/images/app/assets";
-import {useSession} from "@/ctx";
-import {router} from "expo-router";
+import assets from '@/assets/images/app/assets';
+import { useSession } from '@/ctx';
+import { router } from 'expo-router';
+import AsyncStorage from '@react-native-async-storage/async-storage';
+import {useGuestSpinTransfer} from "@/hooks/useGuestSpinTransfer";
 
 const wheelSize = Dimensions.get('window').width * 0.8;
 
@@ -45,15 +47,15 @@ function getWeightedRandomAngle(): number {
 	);
 	const maxCumulativeWeight = cumulativeWeights[cumulativeWeights.length - 1];
 	const randomWeight = Math.random() * maxCumulativeWeight;
-
 	const selectedPrizeIndex = cumulativeWeights.findIndex(
 		cumulativeWeight => randomWeight <= cumulativeWeight
 	);
 	const selectedPrize = prizes[selectedPrizeIndex];
-
-	// Randomly select an angle within the selected prize's range
-	return Math.floor(Math.random() * (selectedPrize.to - selectedPrize.from) + selectedPrize.from);
+	return Math.floor(
+		Math.random() * (selectedPrize.to - selectedPrize.from) + selectedPrize.from
+	);
 }
+
 // function getWeightedRandomAngle(): number {
 // 	// Always win the "FREE BURGER" prize for testing
 // 	const freeBurgerPrize = prizes.find((prize) => prize.label === 'FREE BURGER');
@@ -65,13 +67,49 @@ function getWeightedRandomAngle(): number {
 // }
 
 function getPrizeByAngle(angle: number): Prize {
-	return prizes.find((prize) => {
-		if (prize.from > prize.to) {
-			return angle >= prize.from || angle < prize.to;
-		}
-		return angle >= prize.from && angle < prize.to;
-	}) || prizes[0];
+	return (
+		prizes.find(prize => {
+			if (prize.from > prize.to) {
+				return angle >= prize.from || angle < prize.to;
+			}
+			return angle >= prize.from && angle < prize.to;
+		}) || prizes[0]
+	);
 }
+
+// AsyncStorage helper functions for guest users
+const saveGuestSpin = async (lastSpin: Date, prizeLabel: string) => {
+	try {
+		const data = JSON.stringify({ lastSpin: lastSpin.toISOString(), prizeLabel });
+		await AsyncStorage.setItem('guestSpinData', data);
+		console.log('Guest spin saved:', data);
+	} catch (error) {
+		console.error('Error saving guest spin data', error);
+	}
+};
+
+const getGuestSpin = async () => {
+	try {
+		const data = await AsyncStorage.getItem('guestSpinData');
+		if (data) {
+			const parsed = JSON.parse(data);
+			console.log('Retrieved guest spin data:', parsed);
+			return { lastSpin: new Date(parsed.lastSpin), prizeLabel: parsed.prizeLabel };
+		}
+	} catch (error) {
+		console.error('Error retrieving guest spin data', error);
+	}
+	return null;
+};
+
+const removeGuestSpin = async () => {
+	try {
+		await AsyncStorage.removeItem('guestSpinData');
+		console.log('Guest spin data removed');
+	} catch (error) {
+		console.error('Error removing guest spin data', error);
+	}
+};
 
 const PrizeWheel: React.FC = () => {
 	const [selectedPrize, setSelectedPrize] = useState<Prize | null>(null);
@@ -84,87 +122,148 @@ const PrizeWheel: React.FC = () => {
 
 	const { session, getLastSpin, saveLastSpin } = useSession();
 	const user = session;
+	useGuestSpinTransfer();
 
+	// Check for the last spin (from Firestore for registered users or AsyncStorage for guests)
 	useEffect(() => {
-		if (user) {
-			const fetchLastSpin = async () => {
+		const fetchLastSpin = async () => {
+			let lastSpinData;
+			let storedPrize: string | null = null;
+			if (user) {
 				const { lastSpin, lastPrize } = await getLastSpin(user.uid);
-				setLastPrize(lastPrize);
+				lastSpinData = lastSpin;
+				storedPrize = lastPrize;
+			} else {
+				const guestData = await getGuestSpin();
+				if (guestData) {
+					lastSpinData = guestData.lastSpin;
+					storedPrize = guestData.prizeLabel;
+				}
+			}
 
-				if (lastSpin) {
-					const nextSpinTime = new Date(lastSpin.getTime() + 3 * 24 * 60 * 60 * 1000); // 3 days later
-					const now = new Date();
+			setLastPrize(storedPrize);
 
-					if (now >= nextSpinTime) {
-						setTimeLeft(null); // Spin available
-						rotation.setValue(0); // Reset wheel to 0
-					} else {
-						const diff = nextSpinTime.getTime() - now.getTime();
-						const hours = Math.floor(diff / (1000 * 60 * 60));
-						const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-						setTimeLeft(`${hours} hours, ${minutes} minutes`);
+			if (lastSpinData) {
+				const nextSpinTime = new Date(lastSpinData.getTime() + 3 * 24 * 60 * 60 * 1000);
+				const now = new Date();
 
-						// If the last prize exists, set the wheel's position
-						if (lastPrize) {
-							const prize = prizes.find((p) => p.label === lastPrize);
-							if (prize) {
-								rotation.setValue(prize.center); // Position the wheel at the last prize
-							}
+				if (now >= nextSpinTime) {
+					setTimeLeft(null);
+					rotation.setValue(0);
+				} else {
+					const diff = nextSpinTime.getTime() - now.getTime();
+					const hours = Math.floor(diff / (1000 * 60 * 60));
+					const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+					setTimeLeft(`${hours} hours, ${minutes} minutes`);
+
+					if (storedPrize) {
+						const prize = prizes.find(p => p.label === storedPrize);
+						if (prize) {
+							rotation.setValue(prize.center);
 						}
 					}
 				}
-			};
+			}
+		};
 
-			// Fetch immediately
+		fetchLastSpin();
+		const interval = setInterval(() => {
 			fetchLastSpin();
+		}, 60000);
 
-			// Set up an interval to refetch every minute
-			const interval = setInterval(() => {
-				fetchLastSpin();
-			}, 60000); // Every 1 minute
-
-			// Cleanup on component unmount
-			return () => clearInterval(interval);
-		}
+		return () => clearInterval(interval);
 	}, [user]);
 
+	// Transfer guest spin data to Firestore after sign-in
+	const transferGuestDataToFirestore = async (uid: string) => {
+		try {
+			const guestData = await getGuestSpin();
+			if (guestData) {
+				// Save the most recent guest spin reward to Firestore
+				await saveLastSpin(uid, guestData.prizeLabel);
+				await removeGuestSpin();
+			}
+		} catch (error) {
+			console.error('Error transferring guest data', error);
+		}
+	};
+
 	const spinWheel = async () => {
-		if (user && !timeLeft) {
-			const randomAngle = getWeightedRandomAngle();
-			const prize = getPrizeByAngle(randomAngle);
-			const targetAngle = 360 * 5 + prize.center;
+		if (timeLeft) {
+			Alert.alert('Spin Not Available', `Please wait ${timeLeft} before spinning again.`);
+			return;
+		}
 
-			Animated.timing(rotation, {
-				toValue: targetAngle,
-				duration: 5000,
-				easing: Easing.out(Easing.cubic),
-				useNativeDriver: true,
-			}).start(async () => {
-				setSelectedPrize(prize);
-				currentRotation.current = targetAngle % 360;
-				setCurrentAngle(currentRotation.current);
-				rotation.setValue(currentRotation.current);
+		const randomAngle = getWeightedRandomAngle();
+		const prize = getPrizeByAngle(randomAngle);
+		const targetAngle = 360 * 5 + prize.center;
 
+		Animated.timing(rotation, {
+			toValue: targetAngle,
+			duration: 5000,
+			easing: Easing.out(Easing.cubic),
+			useNativeDriver: true,
+		}).start(async () => {
+			setSelectedPrize(prize);
+			currentRotation.current = targetAngle % 360;
+			setCurrentAngle(currentRotation.current);
+			rotation.setValue(currentRotation.current);
+
+			const now = new Date();
+
+			if (user) {
+				// Registered user flow
 				if (prize.label === 'NO REWARD') {
-					Alert.alert("Try Again", "You can try in 3 days");
+					Alert.alert('Try Again', 'You can try in 3 days');
 				} else {
 					router.push({
 						pathname: '/prize-modal',
 						params: {
-							prize: 'Gift Card',
+							prize: prize.label,
 							qrValue: 'https://example.com/qr',
 						},
 					});
 				}
-
-				// Update Firestore with the new spin time and prize
 				await saveLastSpin(user.uid, prize.label);
+				setTimeLeft('72 hours and 0 minutes');
+			} else {
+				// Guest user flow: Remove old data then save new data
+				await removeGuestSpin();
+				// Delay briefly to ensure removal completes before saving new data
+				setTimeout(async () => {
+					await saveGuestSpin(now, prize.label);
+					// Immediately update local state with the new prize
+					setLastPrize(prize.label);
+					setTimeLeft('72 hours and 0 minutes'); // Block further spins until cooldown expires
+					if (prize.label === 'NO REWARD') {
+						Alert.alert('Try Again', 'You can try in 3 days as a guest');
+					} else {
+						Alert.alert(
+							'Sign In Required',
+							'You received a reward. Please sign in to redeem it.',
+							[
+								{ text: 'Cancel', style: 'cancel' },
+								{
+									text: 'Sign In',
+									onPress: () => {
+										router.push('/sign-in');
+									},
+								},
+							]
+						);
+					}
+				}, 100);
+			}
+		});
+	};
 
-				setTimeLeft("72 hours and 0 minutes"); // Reset the timer display after a spin
-			});
-		} else {
-			Alert.alert("Spin Not Available", `Please wait ${timeLeft} before spinning again.`);
-		}
+	// Testing button: Resets the cooldown and clears guest spin data
+	const resetSpin = async () => {
+		await removeGuestSpin();
+		setTimeLeft(null);
+		setLastPrize(null);
+		rotation.setValue(0);
+		Alert.alert('Test Mode', 'Spin reset. You can spin the wheel again.');
 	};
 
 	const interpolatedRotate = rotation.interpolate({
@@ -176,21 +275,13 @@ const PrizeWheel: React.FC = () => {
 		<View style={styles.container}>
 			<TouchableOpacity onPress={spinWheel} style={styles.wheelContainer}>
 				<Animated.View style={{ transform: [{ rotate: interpolatedRotate }] }}>
-					<Image
-						source={assets.beastieSpinner2}
-						style={{ width: wheelSize, height: wheelSize }}
-					/>
+					<Image source={assets.beastieSpinner2} style={{ width: wheelSize, height: wheelSize }} />
 				</Animated.View>
-				<View style={styles.debugWheelOverlay}>
-					<Image style={styles.arrowImage} source={assets.arrow} />
-				</View>
 				<View style={styles.arrow}></View>
 			</TouchableOpacity>
 			{timeLeft ? (
 				<View>
-					<Text style={styles.resultText}>
-						Next spin available in:
-					</Text>
+					<Text style={styles.resultText}>Next spin available in:</Text>
 					{lastPrize !== 'NO REWARD' ? (
 						<TouchableOpacity
 							onPress={() => {
@@ -203,22 +294,19 @@ const PrizeWheel: React.FC = () => {
 								});
 							}}
 						>
-							<Text style={styles.resultText}>
-								{timeLeft}
-							</Text>
+							<Text style={styles.resultText}>{timeLeft}</Text>
 						</TouchableOpacity>
 					) : (
-						<Text style={styles.resultText}>
-							{timeLeft}
-						</Text>
+						<Text style={styles.resultText}>{timeLeft}</Text>
 					)}
-					{/*<Text style={styles.resultText}>*/}
-					{/*	{lastPrize && `\nLast prize: ${lastPrize}`}*/}
-					{/*</Text>*/}
 				</View>
 			) : (
 				selectedPrize && <Text style={styles.resultText}>You won: {selectedPrize.label}</Text>
 			)}
+			{/* Testing button to reset the cooldown */}
+			{/*<TouchableOpacity onPress={resetSpin} style={styles.resetButton}>*/}
+			{/*	<Text style={styles.resetButtonText}>Reset Spin (Test)</Text>*/}
+			{/*</TouchableOpacity>*/}
 		</View>
 	);
 };
@@ -244,7 +332,7 @@ const styles = StyleSheet.create({
 		left: -26,
 		width: wheelSize,
 		height: wheelSize,
-		justifyContent: "flex-end",
+		justifyContent: 'flex-end',
 		alignItems: 'flex-start',
 	},
 	arrowImage: {
@@ -258,7 +346,7 @@ const styles = StyleSheet.create({
 		fontWeight: 'bold',
 		fontSize: 22,
 		color: '#fff',
-		textAlign: 'center'
+		textAlign: 'center',
 	},
 	arrow: {
 		position: 'absolute',
@@ -274,6 +362,17 @@ const styles = StyleSheet.create({
 		borderRightColor: 'transparent',
 		borderTopColor: '#FFD700',
 		zIndex: 1,
+	},
+	resetButton: {
+		marginTop: 20,
+		paddingVertical: 10,
+		paddingHorizontal: 20,
+		backgroundColor: '#444',
+		borderRadius: 5,
+	},
+	resetButtonText: {
+		color: '#fff',
+		fontSize: 16,
 	},
 });
 

@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 import {
 	StyleSheet,
 	Text,
@@ -8,11 +8,27 @@ import {
 } from 'react-native';
 import { deleteUser } from 'firebase/auth';
 import { doc, deleteDoc } from 'firebase/firestore';
-import {useSession} from "@/ctx";
-import {auth, db} from "@/firebase/FirebaseConfig";
+import { useSession } from '@/ctx';
+import { auth, db } from '@/firebase/FirebaseConfig';
+import { useNavigation } from '@react-navigation/native';
+import { useRouter } from "expo-router";
 
 export default function Profile() {
 	const { session, signOut } = useSession();
+	const router = useRouter();
+
+
+	const handleSignOut = () => {
+		signOut();
+		router.navigate('/')
+	}
+
+	// Redirect to Login if there is no active session
+	useEffect(() => {
+		if (!session) {
+			router.navigate('/sign-in')
+		}
+	}, [session]);
 
 	const handleDeleteAccount = () => {
 		Alert.alert(
@@ -50,22 +66,21 @@ export default function Profile() {
 		);
 	};
 
+	// Render nothing until session is available (or rely on the useEffect redirect)
+	if (!session) {
+		return null;
+	}
+
 	return (
 		<View style={styles.container}>
 			<Text style={styles.header}>Profile</Text>
-			{session ? (
-				<>
-					<Text style={styles.emailText}>Logged in as: {session.email}</Text>
-					<TouchableOpacity style={styles.button} onPress={signOut}>
-						<Text style={styles.buttonText}>Sign Out</Text>
-					</TouchableOpacity>
-					<TouchableOpacity style={[styles.button, styles.deleteButton]} onPress={handleDeleteAccount}>
-						<Text style={styles.buttonText}>Delete Account</Text>
-					</TouchableOpacity>
-				</>
-			) : (
-				<Text style={styles.emailText}>No active session.</Text>
-			)}
+			<Text style={styles.emailText}>Logged in as: {session.email}</Text>
+			<TouchableOpacity style={styles.button} onPress={handleSignOut}>
+				<Text style={styles.buttonText}>Sign Out</Text>
+			</TouchableOpacity>
+			<TouchableOpacity style={[styles.button, styles.deleteButton]} onPress={handleDeleteAccount}>
+				<Text style={styles.buttonText}>Delete Account</Text>
+			</TouchableOpacity>
 		</View>
 	);
 }
